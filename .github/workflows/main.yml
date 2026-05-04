@@ -1,0 +1,51 @@
+name: Build HelloWorld (macos)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+
+      - name: Build (unsigned) for device SDK
+        run: |
+          set -e
+          # Build the project without code signing to produce an .app
+          xcodebuild -project HelloWorld.xcodeproj \
+            -scheme HelloWorld \
+            -configuration Release \
+            -sdk iphoneos \
+            BUILD_DIR="$(pwd)/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+          APP_PATH="$(pwd)/build/Release-iphoneos/HelloWorld.app"
+          echo "Produced app path: $APP_PATH"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "App not found at $APP_PATH"
+            ls -la build || true
+            exit 1
+          fi
+
+          # Create Payload and zip into an .ipa (unsigned). You will need to sign it manually.
+          rm -rf Payload HelloWorld.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r HelloWorld.ipa Payload
+
+          ls -lh HelloWorld.ipa
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloWorld.ipa
+          path: HelloWorld.ipa
